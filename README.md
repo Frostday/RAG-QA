@@ -52,6 +52,24 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+**If `pip install -r requirements.txt` doesn't work**, try these alternatives:
+
+**Option 1: Use pinned versions file**
+```bash
+pip install -r req.txt
+```
+
+**Option 2: Use conda with environment.yml**
+```bash
+conda env create -f environment.yml
+conda activate rag_qa
+```
+
+**Option 3: Install packages manually**
+```bash
+pip install fastapi uvicorn[standard] python-multipart langchain langchain-openai langchain-core langchain-community langchain-text-splitters openai faiss-cpu docling python-dotenv pydantic pandas pytest pytest-asyncio httpx requests streamlit
+```
+
 3. Set up environment variables:
 Create a `.env` file in the project root:
 ```env
