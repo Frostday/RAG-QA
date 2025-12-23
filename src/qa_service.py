@@ -1,4 +1,5 @@
 """Question-Answering service using LangChain and FAISS vector store."""
+import asyncio
 import os
 from pathlib import Path
 from typing import List
@@ -71,7 +72,7 @@ Answer: """,
             input_variables=["context", "question"]
         )
     
-    def answer_question(self, question: str) -> str:
+    async def answer_question(self, question: str) -> str:
         """
         Answer a question based on the indexed documents.
         
@@ -81,9 +82,9 @@ Answer: """,
         Returns:
             The answer to the question
         """
-        # Retrieve relevant documents
+        # Retrieve relevant documents (run in thread to avoid blocking)
         # Use invoke() for newer LangChain versions (LangChain 0.1+)
-        docs = self.retriever.invoke(question)
+        docs = await asyncio.to_thread(self.retriever.invoke, question)
         
         if not docs:
             return "Required context not available in the document."
@@ -94,8 +95,8 @@ Answer: """,
         # Format prompt
         prompt = self.prompt_template.format(context=context, question=question)
         
-        # Get answer from LLM
-        response = self.llm.invoke(prompt)
+        # Get answer from LLM (run in thread to avoid blocking)
+        response = await asyncio.to_thread(self.llm.invoke, prompt)
         
         # Extract content from response
         if hasattr(response, "content"):

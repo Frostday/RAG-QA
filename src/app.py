@@ -1,4 +1,5 @@
 import json
+import asyncio
 import os
 import shutil
 import sys
@@ -200,11 +201,11 @@ async def process_documents(
         # Initialize QA service
         qa_service = QAService(vector_store_path)
         
-        # Answer each question
-        answers = {}
-        for question in questions:
-            answer = qa_service.answer_question(question)
-            answers[question] = answer
+        # Answer all questions concurrently
+        answer_list = await asyncio.gather(*[qa_service.answer_question(question) for question in questions])
+        
+        # Build dictionary mapping questions to answers
+        answers = {question: answer for question, answer in zip(questions, answer_list)}
         
         return answers
         
