@@ -487,3 +487,144 @@ def test_process_documents_missing_questions_file(sample_json_document, tmp_path
         )
     
     assert response.status_code == 422  # FastAPI validation error
+
+
+def test_process_documents_file_too_large(sample_questions, tmp_path):
+    """Test that files exceeding size limit are rejected."""
+    # Create a large file (>50MB)
+    large_file = tmp_path / "large.json"
+    questions_file = tmp_path / "questions.json"
+    
+    # Create a file with size > 50MB
+    large_data = {"data": "x" * (51 * 1024 * 1024)}  # 51MB of data
+    
+    with open(large_file, "w") as f:
+        json.dump(large_data, f)
+    
+    with open(questions_file, "w") as f:
+        json.dump(sample_questions, f)
+    
+    with open(large_file, "rb") as doc_file, open(questions_file, "rb") as q_file:
+        response = client.post(
+            "/process-documents",
+            files={
+                "document": ("large.json", doc_file, "application/json"),
+                "questions_file": ("questions.json", q_file, "application/json")
+            }
+        )
+    
+    assert response.status_code == 413
+    assert "too large" in response.json()["detail"].lower()
+    assert "50 MB" in response.json()["detail"]
+
+
+def test_process_documents_too_many_questions(sample_json_document, tmp_path):
+    """Test that requests with too many questions are rejected."""
+    json_file = tmp_path / "test.json"
+    questions_file = tmp_path / "questions.json"
+    
+    with open(json_file, "w") as f:
+        json.dump(sample_json_document, f)
+    
+    # Create more than MAX_QUESTIONS (100) questions
+    too_many_questions = [f"Question {i}?" for i in range(101)]
+    
+    with open(questions_file, "w") as f:
+        json.dump(too_many_questions, f)
+    
+    with open(json_file, "rb") as doc_file, open(questions_file, "rb") as q_file:
+        response = client.post(
+            "/process-documents",
+            files={
+                "document": ("test.json", doc_file, "application/json"),
+                "questions_file": ("questions.json", q_file, "application/json")
+            }
+        )
+    
+    assert response.status_code == 400
+    assert "too many questions" in response.json()["detail"].lower()
+    assert "100" in response.json()["detail"]
+
+
+def test_process_documents_empty_file(sample_questions, tmp_path):
+    """Test that empty document files are rejected."""
+    empty_file = tmp_path / "empty.json"
+    questions_file = tmp_path / "questions.json"
+    
+    # Create an empty file
+    empty_file.touch()
+    
+    with open(questions_file, "w") as f:
+        json.dump(sample_questions, f)
+    
+    with open(empty_file, "rb") as doc_file, open(questions_file, "rb") as q_file:
+        response = client.post(
+            "/process-documents",
+            files={
+                "document": ("empty.json", doc_file, "application/json"),
+                "questions_file": ("questions.json", q_file, "application/json")
+            }
+        )
+    
+    assert response.status_code == 400
+    assert "empty" in response.json()["detail"].lower()
+
+
+def test_process_documents_duplicate_questions(tmp_path):
+    """Test that duplicate questions are handled efficiently (answered once, reused)."""
+    # Create a simple JSON document
+    document_file = tmp_path / "document.json"
+    document_data = {
+        "title": "Test Document",
+        "content": "This is a test document with some information about data storage.",
+        "description": "A sample document for testing purposes."
+    }
+    with open(document_file, "w") as f:
+        json.dump(document_data, f)
+    
+    # Create questions file with duplicates
+    questions_file = tmp_path / "questions_with_duplicates.json"
+    questions_data = [
+        "What is the main topic?",
+        "How does it work?",
+        "What is the main topic?",  # Duplicate
+        "What are the benefits?",
+        "How does it work?",  # Duplicate
+        "What is the main topic?"  # Duplicate
+    ]
+    
+    with open(questions_file, "w") as f:
+        json.dump(questions_data, f)
+    
+    # Process documents
+    with open(document_file, "rb") as doc_f, open(questions_file, "rb") as q_f:
+        response = client.post(
+            "/process-documents",
+            files={
+                "document": ("document.json", doc_f, "application/json"),
+                "questions_file": ("questions.json", q_f, "application/json")
+            }
+        )
+    
+    # Should succeed
+    assert response.status_code == 200
+    answers = response.json()
+    
+    # Should return answers for all unique questions (3 unique out of 6 total)
+    # The deduplication optimization means we only get 3 keys in the response
+    assert len(answers) == 3
+    
+    # All unique questions should have answers
+    assert "What is the main topic?" in answers
+    assert "How does it work?" in answers
+    assert "What are the benefits?" in answers
+    
+    # All answers should be strings
+    assert isinstance(answers["What is the main topic?"], str)
+    assert isinstance(answers["How does it work?"], str)
+    assert isinstance(answers["What are the benefits?"], str)
+    
+    # Answers should not be empty
+    assert len(answers["What is the main topic?"]) > 0
+    assert len(answers["How does it work?"]) > 0
+    assert len(answers["What are the benefits?"]) > 0

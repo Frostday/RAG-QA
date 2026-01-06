@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  # Backend API service (FastAPI)
+  backend:
+    build:
+      context: .
+      target: backend
+    container_name: rag-qa-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # Mount code for development (comment out for production)
+      - ./src:/app/src
+      # Persistent storage for uploads and vector stores
+      - ./data/uploads:/app/data/uploads
+      - ./data/vector_stores:/app/data/vector_stores
+    env_file:
+      - .env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    networks:
+      - rag-qa-network
+
+  # Frontend service (Streamlit)
+  frontend:
+    build:
+      context: .
+      target: frontend
+    container_name: rag-qa-frontend
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://backend:8000
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # Mount code for development (comment out for production)
+      - ./src:/app/src
+    env_file:
+      - .env
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - rag-qa-network
+
+networks:
+  rag-qa-network:
+    driver: bridge
+
+volumes:
+  uploads:
+  vector_stores:
+

@@ -22,8 +22,17 @@ from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-# Load environment variables from .env file
+# Load environment variables from .env file (backup - config.py also loads it)
 load_dotenv()
+
+# Import configuration (config.py loads .env and validates API key)
+from config import (
+    OPENAI_API_KEY,
+    EMBEDDING_MODEL,
+    JSON_CHUNK_SIZE,
+    JSON_CHUNK_OVERLAP,
+    PDF_MERGE_PEERS,
+)
 
 
 class DocumentIndexer:
@@ -41,20 +50,20 @@ class DocumentIndexer:
         
         # Initialize embeddings
         self.embeddings = OpenAIEmbeddings(
-            model="text-embedding-3-small",
-            openai_api_key=os.getenv("OPENAI_API_KEY")
+            model=EMBEDDING_MODEL,
+            openai_api_key=OPENAI_API_KEY
         )
         
         # Initialize text splitter for JSON
         self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200
+            chunk_size=JSON_CHUNK_SIZE,
+            chunk_overlap=JSON_CHUNK_OVERLAP
         )
     
     def _index_pdf(self, file_path: str, filename: str) -> List[Document]:
         """Index a PDF file using docling, convert to LangChain Documents."""
         converter = DocumentConverter()
-        chunker = HybridChunker(merge_peers=True)
+        chunker = HybridChunker(merge_peers=PDF_MERGE_PEERS)
         
         # Convert PDF to structured document
         result = converter.convert(file_path)
